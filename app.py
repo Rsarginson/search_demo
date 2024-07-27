@@ -2,7 +2,6 @@ import streamlit as st
 import singlestoredb as s2
 import pandas as pd
 import re
-from textblob import TextBlob
 import matplotlib.pyplot as plt
 import openai
 import time
@@ -400,3 +399,5 @@ if section == "Hybrid Search":
     hybrid_search()
 
 ## nice ##
+
+# hey WAIT a damn minute i actually can commit here!
