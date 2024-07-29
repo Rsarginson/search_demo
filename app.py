@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 import openai
 import time
 
-# Usage
 api_key = "sk-proj-tKevZTRcxGUMsVYxwyPkT3BlbkFJF7I8EZT84LdAvW27BTmg"
 
 def strip_special_characters(input_string):
@@ -202,7 +201,7 @@ def proximity_search():
 
 ## Boosted Search -- given a search term, allow the user to put different weights on tokens. Higher weight = higher priority
 def boosted_search():
-    query = """SELECT id, paragraph
+    query = """SELECT id, paragraph, MATCH(TABLE vecs) AGAINST (%s) as score
         FROM vecs
         WHERE MATCH (TABLE vecs)
         AGAINST (%s)
@@ -211,7 +210,10 @@ def boosted_search():
         with conn.cursor() as cursor:
             if boost_term and rest_term:
                 full_search_term = f'paragraph:("{boost_term}"^{weight_value} "{rest_term}")'
-                cursor.execute(query, (full_search_term,))
+                if weight_value > 1.0:
+                    cursor.execute(query, (boost_term, full_search_term,))
+                else:
+                    cursor.execute(query, (rest_term, full_search_term,))
                 results = cursor.fetchall()
                 st.write(query)
                 if results:
@@ -351,7 +353,6 @@ def hybrid_search():
                 set_query_vec = f"SET @query_vec = ('{embedding_vector}':>VECTOR(1536):>BLOB);"
                 cursor.execute(set_query_vec)
                 set_query_text = f"SET @query_text = ('paragraph\: ({strip_special_characters(search_term)})')"
-                st.write(set_query_text)
                 cursor.execute(set_query_text)
                 start_time = time.time()
                 cursor.execute("""
