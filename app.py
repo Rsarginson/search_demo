@@ -9,6 +9,13 @@ import time
 # Usage
 api_key = "sk-proj-tKevZTRcxGUMsVYxwyPkT3BlbkFJF7I8EZT84LdAvW27BTmg"
 
+def strip_special_characters(input_string):
+    # Define a pattern that matches all non-alphanumeric characters
+    pattern = re.compile(r'[^a-zA-Z0-9\s]')
+    # Substitute the matched characters with an empty string
+    cleaned_string = pattern.sub('', input_string)
+    return cleaned_string
+
 def vectorize_text(api_key, text):
     openai.api_key = api_key
 
@@ -78,6 +85,7 @@ if (section == "Fuzzy Search"):
     search_term = st.text_input('Enter the word you would like to find matches for')
     if search_term:
         if is_single_word(search_term):
+            search_term = strip_special_characters(search_term)
             st.success("Valid input: {}".format(search_term))
         else:
             st.error("Invalid input. Please enter a single word without spaces.")
@@ -143,10 +151,10 @@ if (section == "Hybrid Search"):
 ## 'Fuzzy' Search -- Find words close to the given parameter with a ~. roams, foam
 def fuzzy_search():
     query = """
-        SELECT id, paragraph
+        SELECT id, paragraph, MATCH(TABLE vecs) AGAINST (%s) as score
         FROM vecs 
-        WHERE MATCH (TABLE vecs) 
-        AGAINST (%s)
+        WHERE MATCH (TABLE vecs) AGAINST (%s)
+        ORDER BY score DESC
         LIMIT 10;"""
     with get_db_connection() as conn:
         with conn.cursor() as cursor:
@@ -155,10 +163,10 @@ def fuzzy_search():
             elif checkbox_prefix_length and search_term:
                 full_search_term = f'paragraph:{search_term}~{edit_number} OPTIONS \'{{"fuzzy_prefix_length": {prefix_length}}}\''
             start_time = time.time()
-            cursor.execute(query, (full_search_term,))
+            st.write(query, (search_term, full_search_term,))
+            cursor.execute(query, ('paragraph:' + search_term, full_search_term,))
             end_time = time.time()
             st.write("This took",(end_time - start_time)," seconds.")
-            st.write(f"""SELECT id, paragraph FROM vecs WHERE MATCH (TABLE vecs) AGAINST ('{full_search_term}') LIMIT 10;""")
             results = cursor.fetchall()
             if results:
                     columns = [desc[0] for desc in cursor.description]  # Extract column names from cursor
@@ -342,7 +350,7 @@ def hybrid_search():
                 ### set the query vector
                 set_query_vec = f"SET @query_vec = ('{embedding_vector}':>VECTOR(1536):>BLOB);"
                 cursor.execute(set_query_vec)
-                set_query_text = f"SET @query_text = ('paragraph\: ({search_term})')"
+                set_query_text = f"SET @query_text = ('paragraph\: ({strip_special_characters(search_term)})')"
                 st.write(set_query_text)
                 cursor.execute(set_query_text)
                 start_time = time.time()
