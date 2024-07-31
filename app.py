@@ -3,9 +3,11 @@ import singlestoredb as s2
 import pandas as pd
 import re
 import matplotlib.pyplot as plt
+import json
 import openai
 import time
 
+## LIST OF GLOBALS 
 api_key = "sk-proj-tKevZTRcxGUMsVYxwyPkT3BlbkFJF7I8EZT84LdAvW27BTmg"
 
 def strip_special_characters(input_string):
@@ -64,7 +66,33 @@ def updateTitle(section):
 
 st.set_page_config(page_title="Search Demo", layout="wide")
 
+st.markdown(
+    """
+    <style>
+    .css-10trblm {  /* Class for main content */
+        font-family: 'Arial', sans-sans;  /* Change to your desired font */
+    }
+    .css-1d391kg {  /* Class for sidebar */
+        font-family: 'Verdana', sans-sans;  /* Change to your desired font */
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+col1, col2, col3, col4, col5 = st.columns([1, 1, 1, 1, 2.5])
+with col1:
+    st.write("")
+with col2:
+    st.write("")
+with col3:
+    st.write("")
+with col4:
+    st.write("")
+with col5:
+    st.image("logo_primary_singlestore_white.png", use_column_width=True)
 st.sidebar.title("Search Types:")
+
 search_type = st.sidebar.radio("Go to", ["Fulltext Search", "Vector Search", "Hybrid Search"])
 if search_type == "Fulltext Search":
     st.title('Text-only Search')
@@ -75,7 +103,7 @@ elif search_type == "Vector Search":
 elif search_type == "Hybrid Search":
     st.title('Hybrid Search')
     section = 'Hybrid Search'
-analytics = st.sidebar.radio("Toggle Analytics", ["On", "Off"])
+json_toggle = st.sidebar.radio("Toggle JSON search", ["On", "Off"])
 updateTitle(section)
 
 ####### FULLTEXT SEARCH UI ########
@@ -149,43 +177,47 @@ if (section == "Hybrid Search"):
 ## Search functionality
 ## 'Fuzzy' Search -- Find words close to the given parameter with a ~. roams, foam
 def fuzzy_search():
-    query = """
-        SELECT id, paragraph, MATCH(TABLE vecs) AGAINST (%s) as score
+    query_template = """
+        SELECT id, {column}, MATCH(TABLE vecs) AGAINST (%s) as score
         FROM vecs 
         WHERE MATCH (TABLE vecs) AGAINST (%s)
         ORDER BY score DESC
         LIMIT 10;"""
+    query = query_template.format(column=column)
+
     with get_db_connection() as conn:
         with conn.cursor() as cursor:
             if search_term:
-                full_search_term = f'paragraph:{search_term}~{edit_number}'
+                full_search_term = f'{column}:{search_term}~{edit_number}'
             elif checkbox_prefix_length and search_term:
-                full_search_term = f'paragraph:{search_term}~{edit_number} OPTIONS \'{{"fuzzy_prefix_length": {prefix_length}}}\''
+                full_search_term = f'{column}:{search_term}~{edit_number} OPTIONS \'{{"fuzzy_prefix_length": {prefix_length}}}\''
             start_time = time.time()
-            st.write(query, (search_term, full_search_term,))
-            cursor.execute(query, ('paragraph:' + search_term, full_search_term,))
+            st.write(query, (column + ':' + search_term, full_search_term,))
+            cursor.execute(query, (column + ':' + search_term, full_search_term,))
             end_time = time.time()
             st.write("This took",(end_time - start_time)," seconds.")
             results = cursor.fetchall()
             if results:
-                    columns = [desc[0] for desc in cursor.description]  # Extract column names from cursor
-                    df = pd.DataFrame(results, columns=columns)
-                    st.table(df)
+                columns = [desc[0] for desc in cursor.description]  # Extract column names from cursor
+                df = pd.DataFrame(results, columns=columns)
+                st.table(df)
             else:
-                    st.write("No results found.")
+                st.write("No results found.")
 
 ## Proximity Search -- given two terms, find the sequences in which they occur within n tokens
 def proximity_search():
-    query = """SELECT id, paragraph, (MATCH (TABLE vecs) AGAINST ('paragraph:{search_term}')) as score
+    query_template = """SELECT id, {column}, (MATCH (TABLE vecs) AGAINST ('{column}:{search_term}')) as score
             FROM vecs
             WHERE MATCH (TABLE vecs)
             AGAINST (%s)
             ORDER BY score DESC
             LIMIT 10;"""
+    query = query_template.format(column=column)
+
     with get_db_connection() as conn:
         with conn.cursor() as cursor:
             if search_term and search_term_2:
-                full_search_term = f'paragraph:"{search_term} {search_term_2}"~{proximity}'
+                full_search_term = f'{column}:"{search_term} {search_term_2}"~{proximity}'
                 start_time = time.time()
                 cursor.execute(query, (full_search_term,))
                 end_time = time.time()
@@ -256,7 +288,7 @@ def knn_search():
                 set_query = f"SET @query_vec = ('{embedding_vector}':>VECTOR(1536):>BLOB);"
                 cursor.execute(set_query)
                 start_time = time.time()
-                cursor.execute("""SELECT id, paragraph, v <*> @query_vec AS score FROM vecs order by score use index () desc LIMIT 5""")
+                cursor.execute(f"""SELECT id, {column}, v <*> @query_vec AS score FROM vecs order by score use index () desc LIMIT 5""")
                 end_time = time.time()
                 st.write("This took",(end_time - start_time)," seconds.")
                 results = cursor.fetchall()
@@ -272,7 +304,7 @@ def auto_index():
                 set_query = f"SET @query_vec = ('{embedding_vector}':>VECTOR(1536):>BLOB);"
                 cursor.execute(set_query)
                 start_time = time.time()
-                cursor.execute("""SELECT id, paragraph, v <*> @query_vec AS score FROM vecs order by score use index (auto) desc LIMIT 5""")
+                cursor.execute(f"""SELECT id, {column}, v <*> @query_vec AS score FROM vecs order by score use index (auto) desc LIMIT 5""")
                 end_time = time.time()
                 st.write("This took",(end_time - start_time)," seconds.")
                 results = cursor.fetchall()
@@ -288,7 +320,7 @@ def ivf_flat():
                 set_query = f"SET @query_vec = ('{embedding_vector}':>VECTOR(1536):>BLOB);"
                 cursor.execute(set_query)
                 start_time = time.time()
-                cursor.execute("""SELECT id, paragraph, v <*> @query_vec AS score FROM vecs order by score use index (ivf_flat) desc LIMIT 5""")
+                cursor.execute(f"""SELECT id, {column}, v <*> @query_vec AS score FROM vecs order by score use index (ivf_flat) desc LIMIT 5""")
                 end_time = time.time()
                 st.write("This took",(end_time - start_time)," seconds.")
                 results = cursor.fetchall()
@@ -303,7 +335,7 @@ def ivf_pq():
                 set_query = f"SET @query_vec = ('{embedding_vector}':>VECTOR(1536):>BLOB);"
                 cursor.execute(set_query)
                 start_time = time.time()
-                cursor.execute("""SELECT id, paragraph, v <*> @query_vec AS score FROM vecs order by score use index (ivf_pq) desc LIMIT 5""")
+                cursor.execute(f"""SELECT id, {column}, v <*> @query_vec AS score FROM vecs order by score use index (ivf_pq) desc LIMIT 5""")
                 end_time = time.time()
                 st.write("This took",(end_time - start_time)," seconds.")
                 results = cursor.fetchall()
@@ -319,7 +351,7 @@ def ivf_pqfs():
                 set_query = f"SET @query_vec = ('{embedding_vector}':>VECTOR(1536):>BLOB);"
                 cursor.execute(set_query)
                 start_time = time.time()
-                cursor.execute("""SELECT id, paragraph, v <*> @query_vec AS score FROM vecs order by score use index (iv_pqfs) desc LIMIT 5""")
+                cursor.execute(f"""SELECT id, {column}, v <*> @query_vec AS score FROM vecs order by score use index (iv_pqfs) desc LIMIT 5""")
                 end_time = time.time()
                 st.write("This took",(end_time - start_time)," seconds.")
                 results = cursor.fetchall()
@@ -335,7 +367,7 @@ def hnsw_flat():
                 set_query = f"SET @query_vec = ('{embedding_vector}':>VECTOR(1536):>BLOB);"
                 cursor.execute(set_query)
                 start_time = time.time()
-                cursor.execute("""SELECT id, paragraph, v <*> @query_vec AS score FROM vecs order by score use index (hnsw_flat) desc LIMIT 5""")
+                cursor.execute(f"""SELECT id, {column}, v <*> @query_vec AS score FROM vecs order by score use index (hnsw_flat) desc LIMIT 5""")
                 end_time = time.time()
                 st.write("This took",(end_time - start_time)," seconds.")
                 results = cursor.fetchall()
@@ -352,28 +384,28 @@ def hybrid_search():
                 ### set the query vector
                 set_query_vec = f"SET @query_vec = ('{embedding_vector}':>VECTOR(1536):>BLOB);"
                 cursor.execute(set_query_vec)
-                set_query_text = f"SET @query_text = ('paragraph\: ({strip_special_characters(search_term)})')"
+                set_query_text = f"SET @query_text = ('{column}: ({strip_special_characters(search_term)})')"
                 cursor.execute(set_query_text)
                 start_time = time.time()
-                cursor.execute("""
+                cursor.execute(f"""
                             with fts as (
-                            SELECT id, paragraph, (MATCH (TABLE vecs) AGAINST (@query_text)) as score
+                            SELECT id, {column}, (MATCH (TABLE vecs) AGAINST (@query_text)) as score
                             FROM vecs WHERE MATCH (TABLE vecs) AGAINST (@query_text) order by score desc LIMIT 5
                             ),
                             vs as (
-                                select id, paragraph, v <*> @query_vec as score
+                                select id, {column}, v <*> @query_vec as score
                                 from vecs
-                                order by score use index (auto) desc
+                                order by score use index (hnsw_flat) desc
                                 limit 5
                             )
                         select vs.id,
-                            vs.paragraph,
+                            vs.{column},
                             .3 * ifnull(fts.score, 0) + .7 * vs.score as hybrid_score,
                             vs.score as vec_score,
                             ifnull(fts.score, 0) as ft_score
                             from fts full outer join vs
                             on fts.id = vs.id
-                            order by hybrid_score desc
+                            order by vec_score desc
                         limit 5;""")
                 end_time = time.time()
                 st.write("This took",(end_time - start_time)," seconds.")
@@ -382,6 +414,11 @@ def hybrid_search():
                     columns = [desc[0] for desc in cursor.description]  # Extract column names from cursor
                     df = pd.DataFrame(results, columns=columns)
                     st.table(df)
+
+if json_toggle == "On":
+    column = 'paragraph_json'
+else:
+    column = 'paragraph'
 
 if section == "Proximity Search":
     proximity_search()
