@@ -66,19 +66,11 @@ def updateTitle(section):
 
 st.set_page_config(page_title="Search Demo", layout="wide")
 
-st.markdown(
-    """
-    <style>
-    .css-10trblm {  /* Class for main content */
-        font-family: 'Arial', sans-sans;  /* Change to your desired font */
-    }
-    .css-1d391kg {  /* Class for sidebar */
-        font-family: 'Verdana', sans-sans;  /* Change to your desired font */
-    }
-    </style>
-    """,
+# Inject the custom CSS
+with open( "style.css" ) as css:
+    st.markdown( f'<style>{css.read()}</style>' , unsafe_allow_html= True)
     unsafe_allow_html=True
-)
+
 
 col1, col2, col3, col4, col5 = st.columns([1, 1, 1, 1, 2.5])
 with col1:
@@ -91,20 +83,19 @@ with col4:
     st.write("")
 with col5:
     st.image("logo_primary_singlestore_white.png", use_column_width=True)
-st.sidebar.title("Search Types:")
 
+st.sidebar.title("Search Types:")
 search_type = st.sidebar.radio("Go to", ["Fulltext Search", "Vector Search", "Hybrid Search"])
 if search_type == "Fulltext Search":
     st.title('Text-only Search')
     section = st.selectbox("Go to", ["Fuzzy Search", "Proximity Search", "Boosted Search", "Regex Search"])
 elif search_type == "Vector Search":
     st.title('Vector Search')
-    section = st.selectbox("Vector Search Algorithm", ["KNN (no index)", "AUTO index", "ivf_flat", "ivf_pq", "ivf_pqfs", "hnsw_flat"])
+    section = st.selectbox("Vector Search Algorithm", ["hnsw_flat","ivf_pqfs", "ivf_flat", "ivf_pq", "AUTO index", "KNN (no index)"])
 elif search_type == "Hybrid Search":
     st.title('Hybrid Search')
     section = 'Hybrid Search'
 json_toggle = st.sidebar.radio("Toggle JSON search", ["On", "Off"])
-updateTitle(section)
 
 ####### FULLTEXT SEARCH UI ########
 ## Fuzzy Search UI
@@ -195,7 +186,7 @@ def fuzzy_search():
             st.write(query, (column + ':' + search_term, full_search_term,))
             cursor.execute(query, (column + ':' + search_term, full_search_term,))
             end_time = time.time()
-            st.write("This took",(end_time - start_time)," seconds.")
+            st.write("This took", round(1000 * (end_time - start_time),3)," ms.")
             results = cursor.fetchall()
             if results:
                 columns = [desc[0] for desc in cursor.description]  # Extract column names from cursor
@@ -221,8 +212,7 @@ def proximity_search():
                 start_time = time.time()
                 cursor.execute(query, (full_search_term,))
                 end_time = time.time()
-                st.write("This took",(end_time - start_time)," seconds.")
-                st.write(query % full_search_term)
+                st.write("This took", round(1000 * (end_time - start_time),3)," ms.")
                 results = cursor.fetchall()
                 if results:
                     columns = [desc[0] for desc in cursor.description]  # Extract column names from cursor
@@ -247,7 +237,6 @@ def boosted_search():
                 else:
                     cursor.execute(query, (rest_term, full_search_term,))
                 results = cursor.fetchall()
-                st.write(query)
                 if results:
                     columns = [desc[0] for desc in cursor.description]  # Extract column names from cursor
                     df = pd.DataFrame(results, columns=columns)
@@ -290,7 +279,7 @@ def knn_search():
                 start_time = time.time()
                 cursor.execute(f"""SELECT id, {column}, v <*> @query_vec AS score FROM vecs order by score use index () desc LIMIT 5""")
                 end_time = time.time()
-                st.write("This took",(end_time - start_time)," seconds.")
+                st.write("This took", round(1000 * (end_time - start_time),3)," ms.")
                 results = cursor.fetchall()
                 if results:
                     columns = [desc[0] for desc in cursor.description]  # Extract column names from cursor
@@ -306,7 +295,7 @@ def auto_index():
                 start_time = time.time()
                 cursor.execute(f"""SELECT id, {column}, v <*> @query_vec AS score FROM vecs order by score use index (auto) desc LIMIT 5""")
                 end_time = time.time()
-                st.write("This took",(end_time - start_time)," seconds.")
+                st.write("This took", round(1000 * (end_time - start_time),3)," ms.")
                 results = cursor.fetchall()
                 if results:
                     columns = [desc[0] for desc in cursor.description]  # Extract column names from cursor
@@ -322,7 +311,7 @@ def ivf_flat():
                 start_time = time.time()
                 cursor.execute(f"""SELECT id, {column}, v <*> @query_vec AS score FROM vecs order by score use index (ivf_flat) desc LIMIT 5""")
                 end_time = time.time()
-                st.write("This took",(end_time - start_time)," seconds.")
+                st.write("This took", round(1000 * (end_time - start_time),3)," ms.")
                 results = cursor.fetchall()
                 if results:
                     columns = [desc[0] for desc in cursor.description]  # Extract column names from cursor
@@ -337,7 +326,7 @@ def ivf_pq():
                 start_time = time.time()
                 cursor.execute(f"""SELECT id, {column}, v <*> @query_vec AS score FROM vecs order by score use index (ivf_pq) desc LIMIT 5""")
                 end_time = time.time()
-                st.write("This took",(end_time - start_time)," seconds.")
+                st.write("This took", round(1000 * (end_time - start_time),3)," ms.")
                 results = cursor.fetchall()
                 if results:
                     columns = [desc[0] for desc in cursor.description]  # Extract column names from cursor
@@ -353,7 +342,7 @@ def ivf_pqfs():
                 start_time = time.time()
                 cursor.execute(f"""SELECT id, {column}, v <*> @query_vec AS score FROM vecs order by score use index (iv_pqfs) desc LIMIT 5""")
                 end_time = time.time()
-                st.write("This took",(end_time - start_time)," seconds.")
+                st.write("This took", round(1000 * (end_time - start_time),3)," ms.")
                 results = cursor.fetchall()
                 if results:
                     columns = [desc[0] for desc in cursor.description]  # Extract column names from cursor
@@ -369,7 +358,7 @@ def hnsw_flat():
                 start_time = time.time()
                 cursor.execute(f"""SELECT id, {column}, v <*> @query_vec AS score FROM vecs order by score use index (hnsw_flat) desc LIMIT 5""")
                 end_time = time.time()
-                st.write("This took",(end_time - start_time)," seconds.")
+                st.write("This took", round(1000 * (end_time - start_time),3)," ms.")
                 results = cursor.fetchall()
                 if results:
                     columns = [desc[0] for desc in cursor.description]  # Extract column names from cursor
@@ -408,7 +397,7 @@ def hybrid_search():
                             order by vec_score desc
                         limit 5;""")
                 end_time = time.time()
-                st.write("This took",(end_time - start_time)," seconds.")
+                st.write("This took", round(1000 * (end_time - start_time),3)," ms.")
                 results = cursor.fetchall()
                 if results:
                     columns = [desc[0] for desc in cursor.description]  # Extract column names from cursor

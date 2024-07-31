@@ -1,0 +1,18 @@
+@import url('/Users/ryansarginson/Downloads/ss_fonts/sans_sans_WOFF/02_sans_sans_full_family/SansSans-010Thin.woff'); 
+
+html, body *, [class*="css"] {
+    font-family: 'SansSans', sans-serif !important;
+    font-size: 18px;
+    font-weight: 280;
+    color: #FFFFFF;
+}   
+
+.dataframe {
+    font-size: 10px; 
+    color: #FFFFFF; 
+}
+
+.dataframe th, .dataframe td {
+    font-size: 10px; 
+    color: #FFFFFF; 
+}
