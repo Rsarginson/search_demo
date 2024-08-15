@@ -196,12 +196,13 @@ def fuzzy_search():
                 st.write("No results found.")
 
 ## Proximity Search -- given two terms, find the sequences in which they occur within n tokens
+## fix scoring (MATCH (TABLE vecs) AGAINST ('{column}:%s')) as score 
+#             ORDER BY score DESC
 def proximity_search():
-    query_template = """SELECT id, {column}, (MATCH (TABLE vecs) AGAINST ('{column}:{search_term}')) as score
+    query_template = """SELECT id, {column}
             FROM vecs
             WHERE MATCH (TABLE vecs)
             AGAINST (%s)
-            ORDER BY score DESC
             LIMIT 10;"""
     query = query_template.format(column=column)
 
@@ -210,6 +211,7 @@ def proximity_search():
             if search_term and search_term_2:
                 full_search_term = f'{column}:"{search_term} {search_term_2}"~{proximity}'
                 start_time = time.time()
+                st.write(query, (full_search_term,))
                 cursor.execute(query, (full_search_term,))
                 end_time = time.time()
                 st.write("This took", round(1000 * (end_time - start_time),3)," ms.")
@@ -373,7 +375,7 @@ def hybrid_search():
                 ### set the query vector
                 set_query_vec = f"SET @query_vec = ('{embedding_vector}':>VECTOR(1536):>BLOB);"
                 cursor.execute(set_query_vec)
-                set_query_text = f"SET @query_text = ('{column}: ({strip_special_characters(search_term)})')"
+                set_query_text = f"SET @query_text = ('{column}:({strip_special_characters(search_term)})')"
                 cursor.execute(set_query_text)
                 start_time = time.time()
                 cursor.execute(f"""
@@ -394,7 +396,7 @@ def hybrid_search():
                             ifnull(fts.score, 0) as ft_score
                             from fts full outer join vs
                             on fts.id = vs.id
-                            order by vec_score desc
+                            order by hybrid_score desc
                         limit 5;""")
                 end_time = time.time()
                 st.write("This took", round(1000 * (end_time - start_time),3)," ms.")
