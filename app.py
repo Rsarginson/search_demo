@@ -19,7 +19,6 @@ def strip_special_characters(input_string):
 
 def vectorize_text(api_key, text):
     openai.api_key = api_key
-
     response = openai.Embedding.create(
         model="text-embedding-ada-002",  # or any other suitable model
         input=text
@@ -34,11 +33,11 @@ def is_single_word(word):
 ## Connection details
 def get_db_connection():
     conn = s2.connect(
-    host='svc-7376b579-73a5-4640-9a36-b14ad587da17-dml.aws-oregon-3.svc.singlestore.com',
-    port='3306',
-    user='admin',
-    password='SingleStore1!',
-    database='ft_demo')
+        host='svc-7376b579-73a5-4640-9a36-b14ad587da17-dml.aws-oregon-3.svc.singlestore.com',
+        port='3306',
+        user='admin',
+        password='SingleStore1!',
+        database='fts_demo')
     return conn
 
 ## FRONTEND IMPLEMENTATION (streamlit)
@@ -47,8 +46,8 @@ def updateTitle(section):
         st.title("Fuzzy Search")
     elif section == "Proximity Search":
         st.title("Proximity Search")
-    elif section == "Boosted Search":
-        st.title("Boosted Search")
+    # elif section == "Boosted Search":
+    #     st.title("Boosted Search")
     elif section == "Regex Search":
         st.title("Regex Search")
     elif section == "KNN (no index)":
@@ -88,14 +87,14 @@ st.sidebar.title("Search Types:")
 search_type = st.sidebar.radio("Go to", ["Fulltext Search", "Vector Search", "Hybrid Search"])
 if search_type == "Fulltext Search":
     st.title('Text-only Search')
-    section = st.selectbox("Go to", ["Fuzzy Search", "Proximity Search", "Boosted Search", "Regex Search"])
+    section = st.selectbox("Go to", ["Fuzzy Search", "Proximity Search", "Regex Search"])
 elif search_type == "Vector Search":
     st.title('Vector Search')
     section = st.selectbox("Vector Search Algorithm", ["hnsw_flat","ivf_pqfs", "ivf_flat", "ivf_pq", "AUTO index", "KNN (no index)"])
 elif search_type == "Hybrid Search":
     st.title('Hybrid Search')
     section = 'Hybrid Search'
-json_toggle = st.sidebar.radio("Toggle JSON search", ["On", "Off"])
+# json_toggle = st.sidebar.radio("Toggle JSON search", ["On", "Off"])
 
 ####### FULLTEXT SEARCH UI ########
 ## Fuzzy Search UI
@@ -107,14 +106,14 @@ if (section == "Fuzzy Search"):
             st.success("Valid input: {}".format(search_term))
         else:
             st.error("Invalid input. Please enter a single word without spaces.")
-    edit_number = 1
+    edit_number = 2
     checkbox_edit_number = st.checkbox('Custom number of edits?')
     if checkbox_edit_number:
         edit_number = st.number_input('How many edits? (current max: 5)', min_value=1, max_value=5, step=1)
     ## functional once prefix_length is fixed
-    checkbox_prefix_length = st.checkbox('Define prefix length?')
-    if checkbox_prefix_length:
-        prefix_length = st.number_input('How many letters in the prefix? (current max: 5)', min_value=1, max_value=5, step=1)
+    # checkbox_prefix_length = st.checkbox('Define prefix length?')
+    # if checkbox_prefix_length:
+    #     prefix_length = st.number_input('How many letters in the prefix? (current max: 5)', min_value=1, max_value=5, step=1)
     # checkbox_transpositions = st.checkbox('Turn off transpositions?')
 
 
@@ -127,11 +126,11 @@ if (section == "Proximity Search"):
                                   step=1)
 
 ## Boosted Search UI
-if (section == "Boosted Search"):
-    boost_term = st.text_input('Enter the word or phrase you want to boost')
-    if boost_term:
-        weight_value = st.slider('Enter the magnitude', min_value=0.1, max_value=10.0, value=1.0, step = 0.1)
-        rest_term = st.text_input('Enter the unweighted phrase')
+# if (section == "Boosted Search"):
+#     boost_term = st.text_input('Enter the word or phrase you want to boost')
+#     if boost_term:
+#         weight_value = st.slider('Enter the magnitude', min_value=0.1, max_value=10.0, value=1.0, step = 0.1)
+#         rest_term = st.text_input('Enter the unweighted phrase')
 
 ## Regex Search
 if (section == "Regex Search"):
@@ -173,15 +172,15 @@ def fuzzy_search():
         FROM vecs 
         WHERE MATCH (TABLE vecs) AGAINST (%s)
         ORDER BY score DESC
-        LIMIT 10;"""
+        LIMIT 15;"""
     query = query_template.format(column=column)
 
     with get_db_connection() as conn:
         with conn.cursor() as cursor:
             if search_term:
                 full_search_term = f'{column}:{search_term}~{edit_number}'
-            elif checkbox_prefix_length and search_term:
-                full_search_term = f'{column}:{search_term}~{edit_number} OPTIONS \'{{"fuzzy_prefix_length": {prefix_length}}}\''
+            # elif checkbox_prefix_length and search_term:
+                # full_search_term = f'{column}:{search_term}~{edit_number} OPTIONS \'{{"fuzzy_prefix_length": {prefix_length}}}\''
             start_time = time.time()
             st.write(query, (column + ':' + search_term, full_search_term,))
             cursor.execute(query, (column + ':' + search_term, full_search_term,))
@@ -224,27 +223,27 @@ def proximity_search():
                     st.write("No results found.")
 
 ## Boosted Search -- given a search term, allow the user to put different weights on tokens. Higher weight = higher priority
-def boosted_search():
-    query = """SELECT id, paragraph, MATCH(TABLE vecs) AGAINST (%s) as score
-        FROM vecs
-        WHERE MATCH (TABLE vecs)
-        AGAINST (%s)
-        LIMIT 10;"""
-    with get_db_connection() as conn:
-        with conn.cursor() as cursor:
-            if boost_term and rest_term:
-                full_search_term = f'paragraph:("{boost_term}"^{weight_value} "{rest_term}")'
-                if weight_value > 1.0:
-                    cursor.execute(query, (boost_term, full_search_term,))
-                else:
-                    cursor.execute(query, (rest_term, full_search_term,))
-                results = cursor.fetchall()
-                if results:
-                    columns = [desc[0] for desc in cursor.description]  # Extract column names from cursor
-                    df = pd.DataFrame(results, columns=columns)
-                    st.table(df)
-                else:
-                    st.write("No results found.")
+# def boosted_search():
+#     query = """SELECT id, paragraph, MATCH(TABLE vecs) AGAINST (%s) as score
+#         FROM vecs
+#         WHERE MATCH (TABLE vecs)
+#         AGAINST (%s)
+#         LIMIT 10;"""
+#     with get_db_connection() as conn:
+#         with conn.cursor() as cursor:
+#             if boost_term and rest_term:
+#                 full_search_term = f'paragraph:("{boost_term}"^{weight_value} "{rest_term}")'
+#                 if weight_value > 1.0:
+#                     cursor.execute(query, (boost_term, full_search_term,))
+#                 else:
+#                     cursor.execute(query, (rest_term, full_search_term,))
+#                 results = cursor.fetchall()
+#                 if results:
+#                     columns = [desc[0] for desc in cursor.description]  # Extract column names from cursor
+#                     df = pd.DataFrame(results, columns=columns)
+#                     st.table(df)
+#                 else:
+#                     st.write("No results found.")
 
 ## regex search function
 # * FROM rexsearch1 WHERE MATCH (TABLE rexsearch1) AGAINST ('col1:/[mb]oat/'); 
@@ -253,7 +252,7 @@ def regex_search():
         FROM vecs
         WHERE MATCH (TABLE vecs)
         AGAINST (%s)
-        LIMIT 10;"""
+        LIMIT 100;"""
     with get_db_connection() as conn:
         with conn.cursor() as cursor:
             if regex:
@@ -342,7 +341,7 @@ def ivf_pqfs():
                 set_query = f"SET @query_vec = ('{embedding_vector}':>VECTOR(1536):>BLOB);"
                 cursor.execute(set_query)
                 start_time = time.time()
-                cursor.execute(f"""SELECT id, {column}, v <*> @query_vec AS score FROM vecs order by score use index (iv_pqfs) desc LIMIT 5""")
+                cursor.execute(f"""SELECT id, {column}, v <*> @query_vec AS score FROM vecs order by score use index (ivf_pqfs) desc LIMIT 5""")
                 end_time = time.time()
                 st.write("This took", round(1000 * (end_time - start_time),3)," ms.")
                 results = cursor.fetchall()
@@ -406,18 +405,18 @@ def hybrid_search():
                     df = pd.DataFrame(results, columns=columns)
                     st.table(df)
 
-if json_toggle == "On":
-    column = 'paragraph_json'
-else:
-    column = 'paragraph'
+# if json_toggle == "On":
+#     column = 'paragraph_json'
+# else:
+column = 'paragraph'
 
 if section == "Proximity Search":
     proximity_search()
 if section == "Fuzzy Search": 
     if (is_single_word(search_term)):
         fuzzy_search()
-if section == "Boosted Search":
-    boosted_search()    
+# if section == "Boosted Search":
+#     boosted_search()    
 if section == "Regex Search":
     regex_search()
 if section == "KNN (no index)":
@@ -436,5 +435,3 @@ if section == "Hybrid Search":
     hybrid_search()
 
 ## nice ##
-
-# hey WAIT a damn minute i actually can commit here!
